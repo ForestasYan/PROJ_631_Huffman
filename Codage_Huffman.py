@@ -24,6 +24,50 @@ def Recuperer_texte_bin(emplacement):
 
 
 
+#This function is the main one, it will compress the .txt
+#On polytech's computers, we can encode ~165Ko of text per second
+def compression(emplacement):
+    #We get the text
+    texte = Recuperer_texte(emplacement)
+    #We create the Dictionnary
+    liste = Determination_alphabet(emplacement)
+    For = creer_foret(liste)
+    arb = creer_arbre(For)
+    Dico, gros_cara = Codage(arb)
+    
+    code = ""  
+    if gros_cara == None:
+        gros_cara = "00000000"
+    #We convert every caracter of the text in binary accordind to their value in the dictionnary
+    for lettre in texte:
+        code += Dico[lettre]
+    #If the code's number of bits isn't a multiple of 8, we add the begining of gros_cara to code
+    #The idea is that we will add at maximum 7 caracters
+    #Due to the ways we create our tree, it's not possible for a caracter's code to contain the entirety code of an other caracter
+    #So if we add the beging of gros_cara (which has at least 8bits) we are sure that the programm will not recognise any caracter and will just ignore the end
+    #If there are no caracters with more than 7 bits, we will just add zeros at the end of the code, but it may add a random caracter at the end of the decompressed file
+    if len(code)%8 != 0:
+        code += gros_cara[:(8-(len(code)%8))]
+        
+    #We create are chain of bytes (it initialy has a space in it)
+    code_hexa = bytes([0])
+    for k in range(len(code)//8):
+        val_deci = 0
+        #We cut the code in groups of 8 caracters, calculates the decimal value of this group of 8 bits, and add the caracter corresponding to this value to the chain of bytes
+        for z in range(8):
+            val_deci += (code[k*8 + z] == '1')* 2**(7-z)
+        code_hexa += bytes([val_deci])
+    emplacement_ecrit = sortie(emplacement, "_comp.bin")
+    
+    #We write in the .bin file (we put 'wb' instead of 'w' because it's a .bin file)
+    with open(emplacement_ecrit,'wb') as f:
+        f.write(code_hexa)
+    txt_freq(emplacement, liste)
+
+
+
+
+
 #The point of this program is to determine wich caracter are used in a text and how many times
 #We will present the result as a list of lists, each list contains the caracter and its frequency
 
@@ -175,17 +219,6 @@ def Codage_aux(Arbre, code):
     return dico,gros_cara
 
 
-
-
-
-
-
-
-
-
-
-
-
 #This function takes the path of a .txt files (<name>.txt)
 #It will return (<name>nom_fin),   nom_fin being "_comp.bin", "_freq.txt" or "_decomp.txt"
 def sortie(emplacement, nom_fin):
@@ -205,47 +238,9 @@ def txt_freq(emplacement, liste):
             #A line is the caracter in question (liste[k][0]), a space and the frequency (str(liste[k][1])
             txt = liste[k][0] + " " + str(liste[k][1]) + "\n"
             f.write(txt)
-
-#This function is the main one, it will compress the .txt
-#On polytech's computers, we can encode ~165Ko of text per second
-def compression(emplacement):
-    #We get the text
-    texte = Recuperer_texte(emplacement)
-    #We create the Dictionnary
-    liste = Determination_alphabet(emplacement)
-    For = creer_foret(liste)
-    arb = creer_arbre(For)
-    Dico, gros_cara = Codage(arb)
     
-    code = ""  
-    if gros_cara == None:
-        gros_cara = "00000000"
-    #We convert every caracter of the text in binary accordind to their value in the dictionnary
-    for lettre in texte:
-        code += Dico[lettre]
-    #If the code's number of bits isn't a multiple of 8, we add the begining of gros_cara to code
-    #The idea is that we will add at maximum 7 caracters
-    #Due to the ways we create our tree, it's not possible for a caracter's code to contain the entirety code of an other caracter
-    #So if we add the beging of gros_cara (which has at least 8bits) we are sure that the programm will not recognise any caracter and will just ignore the end
-    #If there are no caracters with more than 7 bits, we will just add zeros at the end of the code, but it may add a random caracter at the end of the decompressed file
-    if len(code)%8 != 0:
-        code += gros_cara[:(8-(len(code)%8))]
-        
-    #We create are chain of bytes (it initialy has a space in it)
-    code_hexa = bytes([0])
-    for k in range(len(code)//8):
-        val_deci = 0
-        #We cut the code in groups of 8 caracters, calculates the decimal value of this group of 8 bits, and add the caracter corresponding to this value to the chain of bytes
-        for z in range(8):
-            val_deci += (code[k*8 + z] == '1')* 2**(7-z)
-        code_hexa += bytes([val_deci])
-    emplacement_ecrit = sortie(emplacement, "_comp.bin")
-    
-    #We write in the .bin file (we put 'wb' instead of 'w' because it's a .bin file)
-    with open(emplacement_ecrit,'wb') as f:
-        f.write(code_hexa)
-    txt_freq(emplacement, liste)
-    return 
+         
+             
 
 
 #In the files, one caracter is one byte, so the volume of the file (in bytes) in the number of caracters of the file
@@ -325,6 +320,7 @@ def inverse_dico(Dico):
 
 #This function decompresses the compressed file
 def decompression(emplacement_comp, emplacement_freq):
+    #We create the dictonnary
     liste = recup_liste(emplacement_freq)
     For = creer_foret(liste)
     arb = creer_arbre(For)
@@ -333,16 +329,20 @@ def decompression(emplacement_comp, emplacement_freq):
     texte = Recuperer_texte_bin(emplacement_comp)
     txt_bin = ""
     
+#We convert the 8bits caracters into 0 and 1s
     for k in range(len(texte)):
         binaire = bin(texte[k])[2:]
         binaire = "0"* (8- len(binaire)) + binaire
         txt_bin += binaire
     txt_bin = txt_bin[8:]
     
+    #We reverse the dictionnary, it will help to search binary paterns faster
     Dico = inverse_dico(Dico)
     txt = ""
     txt_restant = txt_bin[:]
     txt_aux = ""
+    #bit per bit, we add the new bit to a caracter chain
+    #if the resulting text corresponds to a caracter in the dictonnary, we empty the chain and add the caracter the the decompressed text
     while len(txt_restant) != 0:
         txt_aux += txt_restant[0]
         txt_restant = txt_restant[1:]
@@ -351,12 +351,15 @@ def decompression(emplacement_comp, emplacement_freq):
                 txt += Dico[cle]
                 txt_aux = ""
                 break
-    
+         
+         
+    #We write the decompressed text in the corresponding file
     emplacement_ecrit = sortie(emplacement_comp, "_decomp.txt")
     with open(emplacement_ecrit,'w') as f:
         f.write(txt)
 
-"""      
+"""   
+#This function helped to create the ASCII list at the top of the file
 a = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~\n"      
 def b(a):
       print(len(a))
